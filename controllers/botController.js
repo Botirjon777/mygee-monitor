@@ -5,9 +5,9 @@ const contextService = require('../services/contextService');
 const mainMenu = {
   reply_markup: {
     keyboard: [
-      ['👤 My Profile', '📊 Recent Stats'],
-      ['📊 Category Summary', '⚙️ Settings'],
-      ['📋 Menu']
+      ['📊 Recent Stats', '📊 Category Summary'],
+      ['👤 My Profile', '🤖 AI Assistant'],
+      ['⚙️ Settings']
     ],
     resize_keyboard: true,
     one_time_keyboard: false
@@ -103,10 +103,10 @@ _"I spent 20000 on lunch"_`;
     return;
   }
 
-  if (text === '📋 Menu') {
-    const menuMsg = "📋 **Available Commands**\n\nJust type your expense like '50000 for gas' and I'll handle the rest!";
-    await bot.sendMessage(chatId, menuMsg, { parse_mode: 'Markdown' });
-    await contextService.saveMessage(user._id, 'assistant', menuMsg);
+  if (text === '🤖 AI Assistant') {
+    const aiMsg = "🤖 **AI Financial Assistant**\n\nYou can ask me anything about your spending, like:\n• _'How much did I spend on food this week?'_\n• _'Give me some saving tips.'_\n• _'What's my biggest expense?'_\n\nJust type your question!";
+    await bot.sendMessage(chatId, aiMsg, { parse_mode: 'Markdown' });
+    await contextService.saveMessage(user._id, 'assistant', aiMsg);
     return;
   }
 
@@ -134,7 +134,16 @@ _"I spent 20000 on lunch"_`;
     const history = await contextService.getRecentHistory(user._id);
     const result = await transactionService.processTransaction(user._id, text, history);
     
-    await bot.sendMessage(chatId, result.message, { parse_mode: 'Markdown' });
+    try {
+      await bot.sendMessage(chatId, result.message, { parse_mode: 'Markdown' });
+    } catch (sendErr) {
+      if (sendErr.code === 'ETELEGRAM' && sendErr.message.includes('can\'t parse entities')) {
+        console.warn('Markdown parsing failed, falling back to plain text');
+        await bot.sendMessage(chatId, result.message);
+      } else {
+        throw sendErr; // Re-throw other errors
+      }
+    }
     await contextService.saveMessage(user._id, 'assistant', result.message);
   } catch (err) {
     console.error(err);

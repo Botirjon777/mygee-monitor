@@ -2,20 +2,37 @@ const Transaction = require('../models/Transaction');
 const { categorizeTransaction, checkWarnings } = require('../utils/ai');
 
 const processTransaction = async (userId, text, history = []) => {
-  const result = await categorizeTransaction(text, history);
+  const summaryContext = await getRawCategorySummary(userId);
+  const result = await categorizeTransaction(text, history, summaryContext);
   
-  if (!result || !result.transactions || result.transactions.length === 0) {
-    return { success: false, message: "I couldn't understand that. Please try again with details like amount and what you spent it on." };
+  if (!result) {
+    return { success: false, message: "I couldn't understand that. Please try again with more details." };
+  }
+
+  // Handle Chat Intent
+  if (result.intent === 'chat') {
+    return { success: true, message: result.answer };
+  }
+
+  // Handle Record Intent
+  if (!result.transactions || result.transactions.length === 0) {
+    return { success: false, message: "I couldn't identify any clear expenses. Please try again with details like '50000 for taxi'." };
   }
 
   let fullResponse = "";
   
   for (const data of result.transactions) {
+    // Validation: Skip if data is incomplete or invalid
+    if (!data.amount || isNaN(data.amount) || !data.type || !['income', 'expense'].includes(data.type)) {
+      console.warn(`Skipping invalid transaction: ${JSON.stringify(data)}`);
+      continue;
+    }
+
     const transaction = new Transaction({
       userId,
       amount: data.amount,
-      description: data.description,
-      category: data.category,
+      description: data.description || 'No description',
+      category: data.category || 'General',
       type: data.type,
       rawInput: text
     });
@@ -32,7 +49,27 @@ const processTransaction = async (userId, text, history = []) => {
     fullResponse += response + "\n\n";
   }
 
+  if (!fullResponse) {
+    return { success: false, message: "I couldn't identify any clear expenses. Please try again with details like '50000 for taxi'." };
+  }
+
   return { success: true, message: fullResponse.trim() };
+};
+
+const getRawCategorySummary = async (userId) => {
+  try {
+    const summary = await Transaction.aggregate([
+      { $match: { userId: userId, type: 'expense' } },
+      { $group: { _id: "$category", total: { $sum: "$amount" } } }
+    ]);
+    
+    if (summary.length === 0) return "User has no recorded expenses yet.";
+
+    return summary.map(item => `${item._id}: ${item.total} sum`).join(', ');
+  } catch (err) {
+    console.error(err);
+    return "Error fetching context.";
+  }
 };
 
 const getRecentStats = async (userId) => {

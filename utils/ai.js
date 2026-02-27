@@ -4,19 +4,27 @@ require('dotenv').config();
 const model = process.env.OLLAMA_MODEL || 'mistral';
 
 /**
- * Categorizes a natural language spending description using Ollama, with context.
+ * Categorizes a natural language spending description or answers a question using Ollama.
  * @param {string} text - The input text from the user.
  * @param {Array} history - Recent chat history [{role, content}].
- * @returns {Promise<Object>} - The categorized transaction data.
+ * @param {string} summary - Current spending summary for context.
+ * @returns {Promise<Object>} - The categorized transaction data or chat response.
  */
-const categorizeTransaction = async (text, history = []) => {
+const categorizeTransaction = async (text, history = [], summary = "No spending data available yet.") => {
   const contextString = history.length > 0 
     ? history.map(h => `${h.role}: ${h.content}`).join('\n')
     : "No previous context.";
 
   const prompt = `
-    You are a financial assistant bot. Categorize the following user input into a transaction.
+    You are a financial assistant bot. Analyze the user input and determine the intent.
     
+    Intent Options:
+    1. "record": **PRIORITY**. Use this if the user provides any numbers/amounts along with descriptions (e.g., "100 for food").
+    2. "chat": Use this ONLY if the user is asking a question, seeking advice, or requesting a report WITHOUT providing new transaction data.
+
+    User Spending Summary:
+    ${summary}
+
     Conversation history for context:
     ${contextString}
 
@@ -24,30 +32,32 @@ const categorizeTransaction = async (text, history = []) => {
 
     Respond ONLY with a JSON object in the following format:
     {
-      "transactions": [
+      "intent": "record" | "chat",
+      "transactions": [ // Only if intent is "record"
         {
           "amount": number,
           "description": "string",
-          "category": "one of [Food, Gas, Bills, Entertainment, General, Taxi, Alcohol, Cigarettes, Shopping, Income, Others]",
+          "category": "string",
           "type": "either 'expense' or 'income'"
         }
-      ]
+      ],
+      "answer": "string" // Only if intent is "chat"
     }
 
     Instructions:
-    - If the user provides multiple expenses or incomes in one message, list them all in the "transactions" array.
-    - If it's about meals, groceries, or eating (even with friends), use 'Food'.
-    - 'Entertainment' is for movies, games, hobbies, etc.
-    - 'Income' is for salaries, gifts, etc.
+    - If "record": List ALL specific items mentioned with their amounts. Ensure 'type' is 'expense' or 'income' and 'amount' is a positive number.
+    - **Categories**: [Food, Transport, Healthcare, Internet, Utilities, Shopping, Entertainment, Bills, Alcohol, Cigarettes, Income, Others]
+    - **Categorization Rules**:
+      - **Food**: meals, groceries, snacks, restaurants, coffee.
+      - **Transport**: taxi, bus, metro, train, parking.
+      - **Healthcare**: medicine, pharmacy, clinics, doctors, hospital.
+      - **Internet**: wifi, mobile data, internet bills.
+    - If "chat": Use the "User Spending Summary" to provide an accurate and helpful answer.
+    - **Formatting**: Ensure all Markdown symbols (like stars, underscores, or backticks) are correctly closed.
     - Output ONLY the JSON.
 
-    Example Input: "20000 for lunch and 50000 for taxi"
-    Example Output: {
-      "transactions": [
-        {"amount": 20000, "description": "lunch", "category": "Food", "type": "expense"},
-        {"amount": 50000, "description": "taxi", "category": "Taxi", "type": "expense"}
-      ]
-    }
+    Example (record): "50000 for taxi and 150000 for medicine" -> {"intent": "record", "transactions": [{"amount": 50000, "description": "taxi", "category": "Transport", "type": "expense"}, {"amount": 150000, "description": "medicine", "category": "Healthcare", "type": "expense"}]}
+    Example (chat): "How much did I spend?" -> {"intent": "chat", "answer": "Based on your records, your total spending is..."}
   `;
 
   try {
@@ -59,7 +69,7 @@ const categorizeTransaction = async (text, history = []) => {
 
     return JSON.parse(response.message.content);
   } catch (err) {
-    console.error(`AI Categorization Error: ${err.message}`);
+    console.error(`AI Analysis Error: ${err.message}`);
     return null;
   }
 };
