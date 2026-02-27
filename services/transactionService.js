@@ -2,31 +2,37 @@ const Transaction = require('../models/Transaction');
 const { categorizeTransaction, checkWarnings } = require('../utils/ai');
 
 const processTransaction = async (userId, text, history = []) => {
-  const data = await categorizeTransaction(text, history);
+  const result = await categorizeTransaction(text, history);
   
-  if (!data || !data.amount) {
+  if (!result || !result.transactions || result.transactions.length === 0) {
     return { success: false, message: "I couldn't understand that. Please try again with details like amount and what you spent it on." };
   }
 
-  const transaction = new Transaction({
-    userId,
-    amount: data.amount,
-    description: data.description,
-    category: data.category,
-    type: data.type,
-    rawInput: text
-  });
-
-  await transaction.save();
-
-  let response = `✅ Saved: **${data.amount} sum** for "${data.description}"\nCategory: **${data.category}**`;
+  let fullResponse = "";
   
-  const warning = checkWarnings(data.category, data.amount);
-  if (warning) {
-    response += `\n\n⚠️ **WARNING**: ${warning}`;
+  for (const data of result.transactions) {
+    const transaction = new Transaction({
+      userId,
+      amount: data.amount,
+      description: data.description,
+      category: data.category,
+      type: data.type,
+      rawInput: text
+    });
+
+    await transaction.save();
+
+    let response = `✅ Saved: **${data.amount} sum** for "${data.description}"\nCategory: **${data.category}**`;
+    
+    const warning = checkWarnings(data.category, data.amount);
+    if (warning) {
+      response += `\n⚠️ **WARNING**: ${warning}`;
+    }
+    
+    fullResponse += response + "\n\n";
   }
 
-  return { success: true, message: response };
+  return { success: true, message: fullResponse.trim() };
 };
 
 const getRecentStats = async (userId) => {

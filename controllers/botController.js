@@ -25,8 +25,6 @@ const handleMessage = async (bot, msg) => {
   // Save user message to history
   await contextService.saveMessage(user._id, 'user', text);
 
-  await contextService.saveMessage(user._id, 'user', text);
-
   // Handle User States (Editing Profile)
   if (user.state && user.state !== 'idle') {
     if (user.state === 'editing_name') {
@@ -39,11 +37,20 @@ const handleMessage = async (bot, msg) => {
     }
 
     if (user.state === 'editing_email') {
-      await userService.updateUserProfile(user._id, { email: text });
-      await userService.updateUserState(user._id, 'idle');
-      const msgText = `✅ Email updated to: **${text}**`;
-      await bot.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
-      await contextService.saveMessage(user._id, 'assistant', msgText);
+      try {
+        await userService.updateUserProfile(user._id, { email: text });
+        await userService.updateUserState(user._id, 'idle');
+        const msgText = `✅ Email updated to: **${text}**`;
+        await bot.sendMessage(chatId, msgText, { parse_mode: 'Markdown' });
+        await contextService.saveMessage(user._id, 'assistant', msgText);
+      } catch (err) {
+        if (err.code === 'DUPLICATE_EMAIL') {
+          await bot.sendMessage(chatId, "⚠️ This email is already registered to another account. Please enter a different email:");
+        } else {
+          console.error(err);
+          await bot.sendMessage(chatId, "Oops, something went wrong while updating your email.");
+        }
+      }
       return;
     }
 

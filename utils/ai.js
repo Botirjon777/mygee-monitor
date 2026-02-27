@@ -24,20 +24,30 @@ const categorizeTransaction = async (text, history = []) => {
 
     Respond ONLY with a JSON object in the following format:
     {
-      "amount": number,
-      "description": "string",
-      "category": "one of [Food, Gas, Bills, Entertainment, General, Taxi, Alcohol, Cigarettes, Shopping, Income, Others]",
-      "type": "either 'expense' or 'income'"
+      "transactions": [
+        {
+          "amount": number,
+          "description": "string",
+          "category": "one of [Food, Gas, Bills, Entertainment, General, Taxi, Alcohol, Cigarettes, Shopping, Income, Others]",
+          "type": "either 'expense' or 'income'"
+        }
+      ]
     }
 
     Instructions:
+    - If the user provides multiple expenses or incomes in one message, list them all in the "transactions" array.
     - If it's about meals, groceries, or eating (even with friends), use 'Food'.
     - 'Entertainment' is for movies, games, hobbies, etc.
     - 'Income' is for salaries, gifts, etc.
     - Output ONLY the JSON.
 
-    Example Input: "I spend 20000 sum for eating"
-    Example Output: {"amount": 20000, "description": "eating", "category": "Food", "type": "expense"}
+    Example Input: "20000 for lunch and 50000 for taxi"
+    Example Output: {
+      "transactions": [
+        {"amount": 20000, "description": "lunch", "category": "Food", "type": "expense"},
+        {"amount": 50000, "description": "taxi", "category": "Taxi", "type": "expense"}
+      ]
+    }
   `;
 
   try {
