@@ -128,22 +128,19 @@ _"I spent 20000 on lunch"_`;
   }
 
   // Default: Process Expense Input
-  bot.sendMessage(chatId, "Processing your input with AI... 🤖");
+  const processingMsg = await bot.sendMessage(chatId, "Analyzing your request... 🤖");
 
   try {
     const history = await contextService.getRecentHistory(user._id);
-    const result = await transactionService.processTransaction(user._id, text, history);
+    const result = await transactionService.processTransaction(user._id, text, history, bot, chatId);
     
+    // Delete the "Analyzing..." message once we have results or start sending updates
     try {
-      await bot.sendMessage(chatId, result.message, { parse_mode: 'Markdown' });
-    } catch (sendErr) {
-      if (sendErr.code === 'ETELEGRAM' && sendErr.message.includes('can\'t parse entities')) {
-        console.warn('Markdown parsing failed, falling back to plain text');
-        await bot.sendMessage(chatId, result.message);
-      } else {
-        throw sendErr; // Re-throw other errors
-      }
+      await bot.deleteMessage(chatId, processingMsg.message_id);
+    } catch (delErr) {
+      console.warn('Could not delete processing message');
     }
+
     await contextService.saveMessage(user._id, 'assistant', result.message);
   } catch (err) {
     console.error(err);

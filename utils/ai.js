@@ -3,13 +3,6 @@ require('dotenv').config();
 
 const model = process.env.OLLAMA_MODEL || 'mistral';
 
-/**
- * Categorizes a natural language spending description or answers a question using Ollama.
- * @param {string} text - The input text from the user.
- * @param {Array} history - Recent chat history [{role, content}].
- * @param {string} summary - Current spending summary for context.
- * @returns {Promise<Object>} - The categorized transaction data or chat response.
- */
 const categorizeTransaction = async (text, history = [], summary = "No spending data available yet.") => {
   const contextString = history.length > 0 
     ? history.map(h => `${h.role}: ${h.content}`).join('\n')
@@ -74,12 +67,6 @@ const categorizeTransaction = async (text, history = [], summary = "No spending 
   }
 };
 
-/**
- * Checks for spending warnings based on category and amount.
- * @param {string} category 
- * @param {number} amount 
- * @returns {string|null} - Warning message or null if safe.
- */
 const checkWarnings = (category, amount) => {
   const warnings = {
     'Gaming': { limit: 50000, msg: "You're spending too much on gaming!" },
@@ -95,4 +82,41 @@ const checkWarnings = (category, amount) => {
   return null;
 };
 
-module.exports = { categorizeTransaction, checkWarnings };
+/**
+ * Checks if Ollama is running and the model is available.
+ */
+const checkAIConnection = async () => {
+  try {
+    await ollama.default.list();
+    console.log(`LLM connected and running correctly (model: ${model})`);
+  } catch (err) {
+    console.error(`LLM Connection Error: Ollama might not be running. ${err.message}`);
+  }
+};
+
+/**
+ * Generates a creative financial tip using Ollama.
+ */
+const generateFinancialTip = async () => {
+  const prompt = `
+    Generate a short, creative, and professional financial tip for a Telegram bot user.
+    The tip should be about saving money, smart investing, or financial health.
+    Keep it within 2-3 sentences.
+    Start with "💡 **Tip of the Day**:" and use Markdown for formatting.
+    Avoid being generic; try to be specific or slightly creative.
+  `;
+
+  try {
+    const response = await ollama.default.chat({
+      model: model,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    return response.message.content;
+  } catch (err) {
+    console.error(`AI Tip Generation Error: ${err.message}`);
+    return "💡 **Tip of the Day**: Tracking your expenses daily is the first step toward financial freedom!";
+  }
+};
+
+module.exports = { categorizeTransaction, checkWarnings, checkAIConnection, generateFinancialTip };

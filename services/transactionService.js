@@ -1,22 +1,26 @@
 const Transaction = require('../models/Transaction');
 const { categorizeTransaction, checkWarnings } = require('../utils/ai');
 
-const processTransaction = async (userId, text, history = []) => {
+const processTransaction = async (userId, text, history = [], bot = null, chatId = null) => {
   const summaryContext = await getRawCategorySummary(userId);
   const result = await categorizeTransaction(text, history, summaryContext);
   
   if (!result) {
+    if (bot && chatId) bot.sendMessage(chatId, "I couldn't understand that. Please try again with more details.");
     return { success: false, message: "I couldn't understand that. Please try again with more details." };
   }
 
   // Handle Chat Intent
   if (result.intent === 'chat') {
+    if (bot && chatId) await bot.sendMessage(chatId, result.answer, { parse_mode: 'Markdown' });
     return { success: true, message: result.answer };
   }
 
   // Handle Record Intent
   if (!result.transactions || result.transactions.length === 0) {
-    return { success: false, message: "I couldn't identify any clear expenses. Please try again with details like '50000 for taxi'." };
+    const errorMsg = "I couldn't identify any clear expenses. Please try again with details like '50000 for taxi'.";
+    if (bot && chatId) bot.sendMessage(chatId, errorMsg);
+    return { success: false, message: errorMsg };
   }
 
   let fullResponse = "";
@@ -39,18 +43,22 @@ const processTransaction = async (userId, text, history = []) => {
 
     await transaction.save();
 
-    let response = `✅ Saved: **${data.amount} sum** for "${data.description}"\nCategory: **${data.category}**`;
+    const response = `✅ Saved: **${data.amount.toLocaleString()} sum** for "${data.description}"\nCategory: **${data.category}**`;
     
-    const warning = checkWarnings(data.category, data.amount);
-    if (warning) {
-      response += `\n⚠️ **WARNING**: ${warning}`;
+    if (bot && chatId) {
+      let botMsg = `✅ **${data.amount.toLocaleString()} sum** for "${data.description}"\nCategory: **${data.category}**`;
+      const warning = checkWarnings(data.category, data.amount);
+      if (warning) {
+        botMsg += `\n⚠️ **WARNING**: ${warning}`;
+      }
+      await bot.sendMessage(chatId, botMsg, { parse_mode: 'Markdown' });
     }
-    
+
     fullResponse += response + "\n\n";
   }
 
-  if (!fullResponse) {
-    return { success: false, message: "I couldn't identify any clear expenses. Please try again with details like '50000 for taxi'." };
+  if (bot && chatId) {
+    await bot.sendMessage(chatId, "✨ **All categories updated**", { parse_mode: 'Markdown' });
   }
 
   return { success: true, message: fullResponse.trim() };

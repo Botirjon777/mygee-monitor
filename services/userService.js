@@ -54,4 +54,8 @@ const updateUserProfile = async (userId, data) => {
   return await User.findByIdAndUpdate(userId, update, { new: true });
 };
 
-module.exports = { getOrCreateUser, updateUserState, updateUserProfile };
+const getAllUsers = async () => {
+  return await User.find({});
+};
+
+module.exports = { getOrCreateUser, updateUserState, updateUserProfile, getAllUsers };
