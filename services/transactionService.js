@@ -1,5 +1,6 @@
 const Transaction = require('../models/Transaction');
 const { categorizeTransaction, checkWarnings } = require('../utils/ai');
+const { resolveDate, formatDate } = require('./dateService');
 
 const processTransaction = async (userId, text, history = [], bot = null, chatId = null) => {
   const summaryContext = await getRawCategorySummary(userId);
@@ -23,6 +24,9 @@ const processTransaction = async (userId, text, history = [], bot = null, chatId
     return { success: false, message: errorMsg };
   }
 
+  // Resolve date from the raw input text (server-side, no AI)
+  const { date: resolvedDate, label: dateLabel } = resolveDate(text);
+
   let fullResponse = "";
   
   for (const data of result.transactions) {
@@ -38,15 +42,17 @@ const processTransaction = async (userId, text, history = [], bot = null, chatId
       description: data.description || 'No description',
       category: data.category || 'General',
       type: data.type,
-      rawInput: text
+      rawInput: text,
+      date: resolvedDate
     });
 
     await transaction.save();
 
-    const response = `✅ Saved: **${data.amount.toLocaleString()} sum** for "${data.description}"\nCategory: **${data.category}**`;
+    const typeEmoji = data.type === 'income' ? '💚' : '🔴';
+    const response = `✅ Saved: **${data.amount.toLocaleString()} sum** for "${data.description}"\nCategory: **${data.category}** | Date: ${dateLabel}`;
     
     if (bot && chatId) {
-      let botMsg = `✅ **${data.amount.toLocaleString()} sum** for "${data.description}"\nCategory: **${data.category}**`;
+      let botMsg = `${typeEmoji} **${data.amount.toLocaleString()} sum** for "${data.description}"\nCategory: **${data.category}**\n📅 Date: \`${dateLabel}\``;
       const warning = checkWarnings(data.category, data.amount);
       if (warning) {
         botMsg += `\n⚠️ **WARNING**: ${warning}`;
@@ -58,7 +64,7 @@ const processTransaction = async (userId, text, history = [], bot = null, chatId
   }
 
   if (bot && chatId) {
-    await bot.sendMessage(chatId, "✨ **All categories updated**", { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, "✨ **All saved successfully**", { parse_mode: 'Markdown' });
   }
 
   return { success: true, message: fullResponse.trim() };
@@ -81,14 +87,16 @@ const getRawCategorySummary = async (userId) => {
 };
 
 const getRecentStats = async (userId) => {
-  const transactions = await Transaction.find({ userId }).limit(5).sort({ date: -1 });
+  const transactions = await Transaction.find({ userId }).limit(10).sort({ date: -1 });
   let statsMsg = "📊 **Recent Transactions**\n\n";
   
   if (transactions.length === 0) {
     statsMsg += "No transactions found yet.";
   } else {
     transactions.forEach(t => {
-      statsMsg += `• ${t.amount} sum - ${t.category} (${t.description})\n`;
+      const typeEmoji = t.type === 'income' ? '💚' : '🔴';
+      const dateStr = t.date ? new Date(t.date).toLocaleDateString('en-GB').replace(/\//g, '.') : '—';
+      statsMsg += `${typeEmoji} **${t.amount.toLocaleString()}** sum — ${t.category} _(${t.description})_ \`${dateStr}\`\n`;
     });
   }
   return statsMsg;
@@ -120,4 +128,4 @@ const getCategorySummary = async (userId) => {
   }
 };
 
-module.exports = { processTransaction, getRecentStats, getCategorySummary };
+module.exports = { processTransaction, getRecentStats, getCategorySummary, getRawCategorySummary };

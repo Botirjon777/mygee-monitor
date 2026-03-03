@@ -12,7 +12,7 @@ const categorizeTransaction = async (text, history = [], summary = "No spending 
     You are a financial assistant bot. Analyze the user input and determine the intent.
     
     Intent Options:
-    1. "record": **PRIORITY**. Use this if the user provides any numbers/amounts along with descriptions (e.g., "100 for food").
+    1. "record": **PRIORITY**. Use this if the user provides any numbers/amounts along with descriptions (e.g., "100 for food", "yesterday I paid 15000 for taxi").
     2. "chat": Use this ONLY if the user is asking a question, seeking advice, or requesting a report WITHOUT providing new transaction data.
 
     User Spending Summary:
@@ -38,18 +38,23 @@ const categorizeTransaction = async (text, history = [], summary = "No spending 
     }
 
     Instructions:
-    - If "record": List ALL specific items mentioned with their amounts. Ensure 'type' is 'expense' or 'income' and 'amount' is a positive number.
+    - If "record": Extract ALL items mentioned with their amounts. Ignore time references like "yesterday" or "last week" — date is handled separately.
+    - Ensure 'type' is 'expense' or 'income' and 'amount' is a positive number.
     - **Categories**: [Food, Transport, Healthcare, Internet, Utilities, Shopping, Entertainment, Bills, Alcohol, Cigarettes, Income, Others]
     - **Categorization Rules**:
-      - **Food**: meals, groceries, snacks, restaurants, coffee.
-      - **Transport**: taxi, bus, metro, train, parking.
-      - **Healthcare**: medicine, pharmacy, clinics, doctors, hospital.
-      - **Internet**: wifi, mobile data, internet bills.
+      - **Food**: meals, groceries, snacks, restaurants, coffee, lunch, dinner, breakfast.
+      - **Transport**: taxi, bus, metro, train, parking, ride, cab, Yandex, Uber.
+      - **Healthcare**: medicine, pharmacy, clinics, doctors, hospital, pills, vitamins.
+      - **Internet**: wifi, mobile data, internet bills, SIM.
+      - **Utilities**: electricity, gas, water, heating, rent.
+      - **Shopping**: clothes, shoes, accessories, electronics.
+      - **Entertainment**: cinema, games, streaming, concerts, sports.
     - If "chat": Use the "User Spending Summary" to provide an accurate and helpful answer.
     - **Formatting**: Ensure all Markdown symbols (like stars, underscores, or backticks) are correctly closed.
     - Output ONLY the JSON.
 
-    Example (record): "50000 for taxi and 150000 for medicine" -> {"intent": "record", "transactions": [{"amount": 50000, "description": "taxi", "category": "Transport", "type": "expense"}, {"amount": 150000, "description": "medicine", "category": "Healthcare", "type": "expense"}]}
+    Example (record): "yesterday I paid 50000 for taxi and 150000 for medicine" -> {"intent": "record", "transactions": [{"amount": 50000, "description": "taxi", "category": "Transport", "type": "expense"}, {"amount": 150000, "description": "medicine", "category": "Healthcare", "type": "expense"}]}
+    Example (record): "15000 for lunch" -> {"intent": "record", "transactions": [{"amount": 15000, "description": "lunch", "category": "Food", "type": "expense"}]}
     Example (chat): "How much did I spend?" -> {"intent": "chat", "answer": "Based on your records, your total spending is..."}
   `;
 
